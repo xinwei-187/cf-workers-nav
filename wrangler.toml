@@ -1,0 +1,7 @@
+name = "daohang-3127"
+main = "workers.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "CARD_ORDER"
+id = "a21f0dfa48c74bd39dc128584cd53a66"
