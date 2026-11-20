@@ -409,6 +409,7 @@ const HTML_CONTENT = `
             if (isDark) document.documentElement.classList.add('dark');
 
             window.__PUBLISHED_THEME = "__NAV_PUBLISHED_THEME__";
+            window.__SITE_SETTINGS = "__NAV_SITE_SETTINGS__";
             try {
                 var _pt = window.__PUBLISHED_THEME;
                 if (typeof _pt === 'string') _pt = null; 
@@ -440,6 +441,33 @@ const HTML_CONTENT = `
             } catch (e) {
                 if (window.__getThemeData()) window.__applyThemeVars(window.__getThemeData(), isDark);
             }
+            // 站点设置（后台可改）：站点名称 + 页脚文案，由服务端注入
+            window.__applySiteSettings = function (s) {
+                var name = (s && s.siteName) || '';
+                var foot = (s && s.footerText) || '';
+                if (name) {
+                    document.title = name;
+                    var label = document.getElementById('site-name-label');
+                    if (label) label.textContent = name;
+                }
+                var footer = document.getElementById('site-footer');
+                if (footer) footer.textContent = foot || ('© 2026 ' + (name || '我的导航'));
+                var nameInput = document.getElementById('site-name-input');
+                if (nameInput) nameInput.value = name;
+                var footInput = document.getElementById('site-footer-input');
+                if (footInput) footInput.value = foot;
+            };
+            try {
+                var _ss = window.__SITE_SETTINGS;
+                if (typeof _ss === 'string') _ss = null;
+                if (_ss) {
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', function () { window.__applySiteSettings(_ss); });
+                    } else {
+                        window.__applySiteSettings(_ss);
+                    }
+                }
+            } catch (e) {}
             // 中文网页字体：当前字体栈引用 Noto Sans SC 时异步加载 500 单档（unicode-range 分片，按需下载）
             try {
                 var _fs = getComputedStyle(document.documentElement).getPropertyValue('--font-sans') || '';
@@ -475,7 +503,7 @@ const HTML_CONTENT = `
                                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
                             </svg>
                         </div>
-                        <span class="font-bold text-lg tracking-wide text-base-foreground hidden sm:block">我的导航</span>
+                        <span id="site-name-label" class="font-bold text-lg tracking-wide text-base-foreground hidden sm:block">我的导航</span>
                     </a>
 
                     <!-- Search Bar -->
@@ -558,6 +586,13 @@ const HTML_CONTENT = `
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12"></path></svg>
                                             导入配置
                                         </button>
+                                        <div class="h-px bg-muted dark:bg-[color-mix(in_oklab,var(--muted)_50%,transparent)] mx-1 my-1"></div>
+                                        <div class="px-3 py-2 space-y-2">
+                                            <div class="text-xs font-medium text-muted-foreground">站点设置</div>
+                                            <input id="site-name-input" type="text" maxlength="40" placeholder="站点名称" class="w-full px-2.5 py-1.5 rounded-lg text-sm border border-line bg-transparent outline-none">
+                                            <input id="site-footer-input" type="text" maxlength="120" placeholder="页脚文案" class="w-full px-2.5 py-1.5 rounded-lg text-sm border border-line bg-transparent outline-none">
+                                            <button onclick="saveSiteSettings()" class="w-full px-2.5 py-1.5 rounded-lg text-sm bg-accent text-white hover:opacity-90 transition-opacity">保存设置</button>
+                                        </div>
                                         <!-- 文件输入框 (隐藏) -->
                                         <input type="file" id="import-file-input" accept=".json,.html,.htm" class="hidden">
                                     </div>
@@ -648,6 +683,9 @@ const HTML_CONTENT = `
         </div>
         
     </main>
+
+    <!-- 站点页脚：文案可在后台「站点设置」里改 -->
+    <footer id="site-footer" class="text-center text-xs text-muted-foreground py-6">© 2026 我的导航</footer>
 
     <!-- 模态框：添加/编辑链接 -->
     <div id="dialog-overlay" class="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300 overlay-hidden hidden">
@@ -3960,6 +3998,31 @@ const HTML_CONTENT = `
         fileInput.click();
     }
 
+    async function saveSiteSettings() {
+        const nameEl = document.getElementById('site-name-input');
+        const footEl = document.getElementById('site-footer-input');
+        const siteName = (nameEl ? nameEl.value : '').trim();
+        const footerText = (footEl ? footEl.value : '').trim();
+        try {
+            const res = await fetchWithAuth('/api/saveSettings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ siteName, footerText })
+            });
+            if (res.status === 401) {
+                logout();
+                await customAlert('登录凭证已过期，请重新登录');
+                return;
+            }
+            if (!res.ok) throw new Error('Save failed');
+            await customAlert('设置已保存');
+            location.reload();
+        } catch (error) {
+            console.error('保存设置失败:', error);
+            await customAlert('保存失败，请重试！');
+        }
+    }
+
     </script>
 </body>
 </html>
@@ -4227,6 +4290,34 @@ async function handleSaveTheme(request, env) {
     return new Response(JSON.stringify({ ok: true, updatedAt: rec.updatedAt }), { status: 200, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } });
 }
 
+async function handleSaveSettings(request, env) {
+    const v = await validateServerToken(request.headers.get('Authorization'), env);
+    if (!v.isValid) return new Response(JSON.stringify(v.response), { status: v.status, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } });
+    const body = await readJsonBody(request, 40 * 1024);
+    if (!body.ok) return new Response(JSON.stringify({ error: body.reason }), { status: body.reason === 'TOO_LARGE' ? 413 : 400, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } });
+    const b = body.data || {};
+    const rec = {
+        siteName: typeof b.siteName === 'string' ? b.siteName.slice(0, 40) : '',
+        footerText: typeof b.footerText === 'string' ? b.footerText.slice(0, 120) : '',
+        updatedAt: Date.now(),
+    };
+    try {
+        await env.CARD_ORDER.put(DEFAULT_USER + ':settings', JSON.stringify(rec));
+    } catch (e) {
+        return new Response(JSON.stringify({ error: 'KV_WRITE_FAILED' }), { status: 500, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } });
+    }
+    const oldRev = (_pubSettingsMemo.value && _pubSettingsMemo.value.updatedAt) || 0;
+    try {
+        const origin = new URL(request.url).origin;
+        await Promise.all([
+            caches.default.delete(new Request(origin + '/?tr=' + oldRev, { method: 'GET' })),
+            caches.default.delete(new Request(origin + '/', { method: 'GET' })),
+        ]);
+    } catch (e) { console.warn('settings cache purge failed', e); }
+    _pubSettingsMemo.expireAt = 0;
+    return new Response(JSON.stringify({ ok: true, updatedAt: rec.updatedAt }), { status: 200, headers: { ...corsHeaders(request, env), 'Content-Type': 'application/json' } });
+}
+
 // —— 发布主题注入 ——
 const _pubThemeMemo = { value: null, expireAt: 0 };
 async function getPublishedTheme(env) {
@@ -4240,6 +4331,21 @@ async function getPublishedTheme(env) {
     _pubThemeMemo.value = theme;
     _pubThemeMemo.expireAt = now + 5000; 
     return theme;
+}
+
+// —— 发布站点设置注入（与主题同款机制）——
+const _pubSettingsMemo = { value: null, expireAt: 0 };
+async function getPublishedSettings(env) {
+    const now = Date.now();
+    if (_pubSettingsMemo.expireAt > now) return _pubSettingsMemo.value;
+    let settings = null;
+    try {
+        const raw = await env.CARD_ORDER.get(DEFAULT_USER + ':settings');
+        if (raw) settings = JSON.parse(raw);
+    } catch (e) { settings = null; }
+    _pubSettingsMemo.value = settings;
+    _pubSettingsMemo.expireAt = now + 5000;
+    return settings;
 }
 
 function jsonForScript(obj) {
@@ -4260,8 +4366,8 @@ function themeToJsLiteral(theme) {
         updatedAt: theme.updatedAt || 0,
     });
 }
-async function buildHtml(theme) {
-    const body = HTML_CONTENT.split('"__NAV_PUBLISHED_THEME__"').join(themeToJsLiteral(theme));
+async function buildHtml(theme, settings) {
+    const body = HTML_CONTENT.split('"__NAV_PUBLISHED_THEME__"').join(themeToJsLiteral(theme)).split('"__NAV_SITE_SETTINGS__"').join(jsonForScript(settings || null));
     const buf = await new Response(body).arrayBuffer();
     const digest = await crypto.subtle.digest('SHA-256', buf);
     const etag = '"' + base64UrlEncodeUint8(new Uint8Array(digest)).slice(0, 32) + '"';
@@ -4757,9 +4863,14 @@ export default {
                 return handleSaveTheme(request, env);
             }
 
+            if (url.pathname === '/api/saveSettings' && request.method === 'POST') {
+                return handleSaveSettings(request, env);
+            }
+
         if (url.pathname === '/' || url.pathname === '/index.html') {
             const theme = await getPublishedTheme(env);
-            const { etag, body } = await buildHtml(theme);
+            const settings = await getPublishedSettings(env);
+            const { etag, body } = await buildHtml(theme, settings);
 
             if (request.headers.get('If-None-Match') === etag) {
                 return new Response(null, {
@@ -4773,7 +4884,7 @@ export default {
             }
 
             // 边缘缓存命中 → 0 回源
-            const rev = (theme && theme.updatedAt) || 0;
+            const rev = Math.max((theme && theme.updatedAt) || 0, (settings && settings.updatedAt) || 0);
             const cacheKey = new Request(url.origin + '/?tr=' + rev, { method: 'GET' });
             const hit = await caches.default.match(cacheKey);
             if (hit) return hit;
