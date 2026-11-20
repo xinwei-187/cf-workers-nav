@@ -240,7 +240,14 @@ const HTML_CONTENT = `
         html.dark .card-status-tag.offline {
             color: #f87171;
         }
-    </style>
+            #site-footer {
+            font-size: 13px;
+            text-align: center;
+            padding: 28px 16px 36px;
+            letter-spacing: 0.3px;
+            opacity: 0.7;
+        }
+</style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script>
