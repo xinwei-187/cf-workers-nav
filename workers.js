@@ -685,7 +685,7 @@ const HTML_CONTENT = `
         <!-- 返回顶部按钮独立放置 -->
         <div class="fixed bottom-8 right-8 z-50">
             <button id="back-to-top-btn" onclick="scrollToTop()" aria-label="返回顶部" class="hidden w-12 h-12 rounded-2xl bg-[color-mix(in_oklab,var(--card)_90%,var(--background))] dark:bg-[color-mix(in_oklab,var(--card)_90%,var(--background))] text-muted-foreground border border-line dark:border-line shadow-lg backdrop-blur-sm flex items-center justify-center transition-all hover:scale-110 hover:bg-muted dark:hover:bg-muted has-tooltip group" data-tooltip="返回顶部">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+                <svg class="w-7 h-7 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><g transform="rotate(-45 12 12)"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></g></svg>
             </button>
         </div>
         
